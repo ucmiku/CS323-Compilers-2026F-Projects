@@ -1,0 +1,3 @@
+testcases/project5/**/*.in text eol=lf
+testcases/project5/**/*.out text eol=lf
+examples/*.stdout text eol=lf

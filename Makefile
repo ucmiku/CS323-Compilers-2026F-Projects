@@ -1,8 +1,17 @@
 # CS323 Project 5 — local and OJ builds. Requires ANTLR4 complete jar and JDK 17+.
-ANTLR_JAR ?= /usr/local/share/antlr/antlr.jar
+ANTLR_JAR ?= .tools/antlr-4.13.2-complete.jar
 JAVA ?= java
 JAVAC ?= javac
 JAR ?= jar
+ifeq ($(OS),Windows_NT)
+SHELL := C:/Progra~1/Git/usr/bin/bash.exe
+PATH := C:/Progra~1/Git/usr/bin;$(PATH)
+CLASSPATH_SEP := ;
+PYTHON ?= python
+else
+CLASSPATH_SEP := :
+PYTHON ?= python3
+endif
 
 # Each Java tool starts a separate JVM inside the existing Hydro compile-memory sandbox.
 # -Xmx limits ONLY the Java heap; Metaspace, compressed class space, code cache,
@@ -46,33 +55,33 @@ clean:
 	rm -rf target project.jar project5.jar
 
 check-data:
-	python3 scripts/protocol_selftest.py
-	python3 scripts/check_testdata.py
+	$(PYTHON) scripts/protocol_selftest.py
+	$(PYTHON) scripts/check_testdata.py
 
 test: build check-data
-	ANTLR_JAR="$(ANTLR_JAR)" python3 scripts/run_suite.py --scope public --examples
+	ANTLR_JAR="$(ANTLR_JAR)" $(PYTHON) scripts/run_suite.py --scope public --examples
 
 test-public: build check-data
-	ANTLR_JAR="$(ANTLR_JAR)" python3 scripts/run_suite.py --scope public
+	ANTLR_JAR="$(ANTLR_JAR)" $(PYTHON) scripts/run_suite.py --scope public
 
 test-all: build check-data
-	ANTLR_JAR="$(ANTLR_JAR)" python3 scripts/run_suite.py --scope all --examples
+	ANTLR_JAR="$(ANTLR_JAR)" $(PYTHON) scripts/run_suite.py --scope all --examples
 
 ir: build
-	$(JAVA) -Xmx128m -cp "target/project.jar:$(ANTLR_JAR)" Main --emit-ir "$(SOURCE)"
+	$(JAVA) -Xmx128m -cp "target/project.jar$(CLASSPATH_SEP)$(ANTLR_JAR)" Main --emit-ir "$(SOURCE)"
 
 run: build
-	$(JAVA) -Xmx128m -cp "target/project.jar:$(ANTLR_JAR)" Main --run-spl "$(SOURCE)" < "$(STDIN)"
+	$(JAVA) -Xmx128m -cp "target/project.jar$(CLASSPATH_SEP)$(ANTLR_JAR)" Main --run-spl "$(SOURCE)" < "$(STDIN)"
 
 handin:
-	bash scripts/handin.sh
+	PYTHON="$(PYTHON)" bash scripts/handin.sh
 
 testdata:
-	python3 scripts/generate_testdata.py
-	python3 scripts/check_testdata.py
+	$(PYTHON) scripts/generate_testdata.py
+	$(PYTHON) scripts/check_testdata.py
 
 package: check-data
-	python3 scripts/package_release.py
+	$(PYTHON) scripts/package_release.py
 
 verify: test-all package
-	python3 scripts/check_release.py
+	$(PYTHON) scripts/check_release.py

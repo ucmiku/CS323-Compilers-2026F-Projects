@@ -108,6 +108,8 @@ public final class Main {
         if (bytes.length > 0 && bytes[bytes.length-1] != '\n')
             return "P5_ERROR_RE\n";
         String stdout = new String(bytes,StandardCharsets.UTF_8);
+        if (System.getProperty("os.name").toLowerCase().contains("win"))
+            stdout = stdout.replace("\r\n", "\n");
         if (stdout.indexOf('\r') >= 0) return "P5_ERROR_RE\n";
         for (String line : stdout.split("\n",-1)) {
             if (isMarker(line)) return "P5_ERROR_RE\n";
@@ -116,12 +118,12 @@ public final class Main {
     }
 
     private static void printResults(List<String> output) {
-        System.out.println("CASES " + output.size());
+        System.out.print("CASES " + output.size() + "\n");
         for (int i = 0; i < output.size(); i++) {
-            System.out.println("=== OUTPUT " + (i+1) + " ===");
+            System.out.print("=== OUTPUT " + (i+1) + " ===\n");
             System.out.print(output.get(i));
         }
-        System.out.println("=== END ===");
+        System.out.print("=== END ===\n");
     }
 
     private record Proc(int code, byte[] stdout, byte[] stderr) {}
@@ -148,10 +150,11 @@ public final class Main {
     }
 
     private static Path compile(String ir, Path work) throws Exception {
-        Path ll = work.resolve("output.ll"), exe = work.resolve("program");
+        boolean windows = System.getProperty("os.name").toLowerCase().contains("win");
+        Path ll = work.resolve("output.ll"), exe = work.resolve(windows ? "program.exe" : "program");
         Files.writeString(ll, ir, StandardCharsets.UTF_8);
-        String opt = System.getenv().getOrDefault("P5_OPT", "opt-19");
-        String clang = System.getenv().getOrDefault("P5_CLANG", "clang-19");
+        String opt = System.getenv().getOrDefault("P5_OPT", windows ? "opt" : "opt-19");
+        String clang = System.getenv().getOrDefault("P5_CLANG", windows ? "clang" : "clang-19");
         // The Hydro language copies only project.jar into the execution sandbox.
         // Embed runtime/runtime.c in the JAR and extract it for clang at execution time.
         String runtime = System.getenv("P5_RUNTIME");
@@ -169,8 +172,15 @@ public final class Main {
             if (check.code() != 0)
                 throw new IOException("LLVM verifier rejected IR: " + new String(check.stderr(), StandardCharsets.UTF_8));
         }
-        Proc cc = process(List.of(clang, "-O0", ll.toString(), runtime, "-o", exe.toString()),
-                          new byte[0], work, 12);
+        List<String> clangCommand = new ArrayList<>(List.of(clang));
+        String clangTarget = System.getenv("P5_CLANG_TARGET");
+        if (clangTarget != null && !clangTarget.isBlank())
+            clangCommand.add("--target=" + clangTarget);
+        String gccToolchain = System.getenv("P5_GCC_TOOLCHAIN");
+        if (gccToolchain != null && !gccToolchain.isBlank())
+            clangCommand.add("--gcc-toolchain=" + gccToolchain);
+        clangCommand.addAll(List.of("-O0", ll.toString(), runtime, "-o", exe.toString()));
+        Proc cc = process(clangCommand, new byte[0], work, 12);
         if (cc.code() != 0)
             throw new IOException("Clang rejected IR: " + new String(cc.stderr(), StandardCharsets.UTF_8));
         return exe;
@@ -227,7 +237,10 @@ public final class Main {
         try {
             Path exe = compile(ir, work);
             Proc out = process(List.of(exe.toString()), stdin, work, RUN_TIMEOUT_SECONDS);
-            System.out.write(out.stdout());
+            byte[] stdout = out.stdout();
+            if (System.getProperty("os.name").toLowerCase().contains("win"))
+                stdout = new String(stdout, StandardCharsets.UTF_8).replace("\r\n", "\n").getBytes(StandardCharsets.UTF_8);
+            System.out.write(stdout);
             if (out.code() != 0) throw new IOException("Program exited with code " + out.code());
         } finally { cleanup(work); }
     }

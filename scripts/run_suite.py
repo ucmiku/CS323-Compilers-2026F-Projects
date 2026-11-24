@@ -9,7 +9,7 @@ p.add_argument('--scope',choices=['public','all'],required=True)
 p.add_argument('--examples',action='store_true')
 args=p.parse_args()
 jar=os.environ.get('ANTLR_JAR','/usr/local/share/antlr/antlr.jar')
-cmd=['java','-Xmx128m','-cp',f'{root}/target/project.jar:{jar}','Main']
+cmd=['java','-Xmx128m','-cp',os.pathsep.join((str(root/'target/project.jar'),jar)),'Main']
 passed=0;total=0
 if args.examples:
     for source in sorted((root/'examples').glob('*.spl')):
